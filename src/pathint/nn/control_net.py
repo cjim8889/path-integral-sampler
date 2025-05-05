@@ -124,13 +124,13 @@ class ControlNet(eqx.Module):
             key_coeff, weight_init, bias_init, self.coeff_net
         )
 
-        # Initialize last layers to zero
-        self.const_net.layers[-1] = apply_linear_init(
-            PRNGKey(0), zeros_init, zeros_init, self.const_net.layers[-1]
-        )
-        self.coeff_net.layers[-1] = apply_linear_init(
-            PRNGKey(0), zeros_init, zeros_init, self.coeff_net.layers[-1]
-        )
+        # # Initialize last layers to zero
+        # self.const_net.layers[-1] = apply_linear_init(
+        #     PRNGKey(0), zeros_init, zeros_init, self.const_net.layers[-1]
+        # )
+        # self.coeff_net.layers[-1] = apply_linear_init(
+        #     PRNGKey(0), zeros_init, zeros_init, self.coeff_net.layers[-1]
+        # )
 
     def __call__(self, t: Array, x: Array) -> Array:
         t_emb = t # / self.T - 0.5
