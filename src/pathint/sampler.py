@@ -5,7 +5,7 @@ from typing import Callable, Tuple
 import diffrax as dfx
 import jax.numpy as jnp
 import numpyro.distributions as dist
-from jax.random import PRNGKeyArray
+from jax.random import PRNGKey
 from jaxtyping import Array, PyTree  # type: ignore
 
 # Disable host callbacks for errors since it leads to this bug:
@@ -100,7 +100,7 @@ class PathIntegralSampler:
         """
         return jnp.append(jnp.ones(self.x_size), jnp.zeros(1))
 
-    def get_loss(self, model: PyTree, key: PRNGKeyArray):
+    def get_loss(self, model: PyTree, key: PRNGKey):
         """
         Gets loss for a single trajectory.
 
@@ -159,7 +159,7 @@ class PathIntegralSampler:
         cost = y_T + Psi_T
         return x_T, cost
 
-    def get_sample(self, model: PyTree, key: PRNGKeyArray) -> Tuple[Array, Array]:
+    def get_sample(self, model: PyTree, key: PRNGKey) -> Tuple[Array, Array]:
         """
         Generates a sample. To generate multiple samples, `vmap` over `key`.
 

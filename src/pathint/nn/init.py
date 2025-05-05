@@ -4,26 +4,26 @@ from typing import Tuple
 import equinox as eqx
 import jax.numpy as jnp
 import jax.tree_util as jtu
-from jax.random import PRNGKeyArray, normal, split, uniform
+from jax.random import PRNGKey, normal, split, uniform
 from jaxtyping import Array, PyTree  # type: ignore
 
 
 def default_uniform_init(
-    key: PRNGKeyArray, out_features: int, in_features: int, shape: Tuple[int, ...]
+    key: PRNGKey, out_features: int, in_features: int, shape: Tuple[int, ...]
 ) -> Array:
     lim = 1 / math.sqrt(in_features)
     return uniform(key, shape, minval=-lim, maxval=lim)
 
 
 def lecun_init(
-    key: PRNGKeyArray, out_features: int, in_features: int, shape: Tuple[int, ...]
+    key: PRNGKey, out_features: int, in_features: int, shape: Tuple[int, ...]
 ) -> Array:
     stdev = 1 / math.sqrt(in_features)
     return stdev * normal(key, shape)
 
 
 def zeros_init(
-    key: PRNGKeyArray, out_features: int, in_features: int, shape: Tuple[int, ...]
+    key: PRNGKey, out_features: int, in_features: int, shape: Tuple[int, ...]
 ) -> Array:
     return jnp.zeros(shape)
 

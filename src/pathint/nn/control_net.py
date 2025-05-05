@@ -3,7 +3,7 @@ from typing import Callable
 import equinox as eqx
 import jax
 import jax.numpy as jnp
-from jax.random import PRNGKey, PRNGKeyArray, split
+from jax.random import PRNGKey, split
 from jaxtyping import Array  # type: ignore
 
 # from .composed import MLP
@@ -47,7 +47,7 @@ class ControlNet(eqx.Module):
         weight_init=default_uniform_init,
         bias_init=default_uniform_init,
         *,
-        key: PRNGKeyArray,
+        key: PRNGKey,
     ):
         """
         Args:
