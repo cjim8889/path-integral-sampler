@@ -5,7 +5,7 @@ authors = [{name = "Adam Coogan", email = "dr.adam.coogan@gmail.com"}]
 description = "Jax implementation of the Path Integral Sampler."
 readme = "README.md"
 license = { file="LICENSE" }
-requires-python = ">=3.7"
+requires-python = ">=3.10"
 classifiers = [
     "Programming Language :: Python :: 3",
     "License :: OSI Approved :: MIT License",

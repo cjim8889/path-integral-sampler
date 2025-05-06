@@ -7,7 +7,7 @@ from jax.random import PRNGKey, split
 from jaxtyping import Array  # type: ignore
 
 # from .composed import MLP
-from .init import apply_linear_init, default_uniform_init, zeros_init
+from .init import init_linear_weights, xavier_init, zeros_init
 from .positional_encoding import PositionalEncoding
 
 
@@ -26,8 +26,6 @@ class ControlNet(eqx.Module):
     x_emb: Callable
     const_net: Callable
     coeff_net: Callable
-    # const_scale: Array
-    # coeff_scale: Array
 
     def __init__(
         self,
@@ -40,12 +38,10 @@ class ControlNet(eqx.Module):
         embed_depth: int = 2,
         width_size: int = 64,
         depth: int = 3,
-        # init_const_scale: Array = jnp.array(0.0),
-        # init_coeff_scale: Array = jnp.array(0.0),
         scalar_coeff_net: bool = True,
         act: Callable[[Array], Array] = jax.nn.relu,
-        weight_init=default_uniform_init,
-        bias_init=default_uniform_init,
+        weight_init=xavier_init,
+        bias_init=xavier_init,
         *,
         key: PRNGKey,
     ):
@@ -115,22 +111,23 @@ class ControlNet(eqx.Module):
         )
 
         # Reinitialize weights
-        self.t_emb = apply_linear_init(key_t, weight_init, bias_init, self.t_emb)
-        self.x_emb = apply_linear_init(key_x, weight_init, bias_init, self.x_emb)
-        self.const_net = apply_linear_init(
-            key_const, weight_init, bias_init, self.const_net
+        self.t_emb = init_linear_weights(
+            self.t_emb, weight_init, key=key_t, scale=0.1,
         )
-        self.coeff_net = apply_linear_init(
-            key_coeff, weight_init, bias_init, self.coeff_net
+        self.x_emb = init_linear_weights(
+            self.x_emb, weight_init, key=key_x, scale=0.1,
+        )
+        self.const_net = init_linear_weights(
+            self.const_net, weight_init, key=key_const, scale=0.1,
+        )
+        self.coeff_net = init_linear_weights(
+            self.coeff_net, weight_init, key=key_coeff, scale=0.1,
         )
 
-        # # Initialize last layers to zero
-        # self.const_net.layers[-1] = apply_linear_init(
-        #     PRNGKey(0), zeros_init, zeros_init, self.const_net.layers[-1]
-        # )
-        # self.coeff_net.layers[-1] = apply_linear_init(
-        #     PRNGKey(0), zeros_init, zeros_init, self.coeff_net.layers[-1]
-        # )
+        # Initialize last layers to zero
+        self.const_net = init_linear_weights(
+            self.const_net, zeros_init, key=key_const, scale=0.0,
+        )
 
     def __call__(self, t: Array, x: Array) -> Array:
         t_emb = t # / self.T - 0.5
