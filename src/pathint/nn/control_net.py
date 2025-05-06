@@ -7,7 +7,7 @@ from jax.random import PRNGKey, split
 from jaxtyping import Array  # type: ignore
 
 # from .composed import MLP
-from .init import init_linear_weights, xavier_init, zeros_init
+from .init import init_linear_weights, xavier_init, zero_init
 from .positional_encoding import PositionalEncoding
 
 
@@ -126,7 +126,7 @@ class ControlNet(eqx.Module):
 
         # Initialize last layers to zero
         self.const_net = init_linear_weights(
-            self.const_net, zeros_init, key=key_const, scale=0.0,
+            self.const_net, zero_init, key=key_const, scale=0.0,
         )
 
     def __call__(self, t: Array, x: Array) -> Array:
