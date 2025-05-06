@@ -64,6 +64,8 @@ class PathIntegralSampler:
     """point at which diffusion begins (the origin).
     """
 
+    sigma: float = 1.0
+
     def __post_init__(self):
         self.y0 = jnp.zeros(self.x_size + 1)
 
@@ -71,7 +73,7 @@ class PathIntegralSampler:
         """
         Gets log probability for the terminal distribution of the uncontrolled process.
         """
-        return dist.Normal(scale=jnp.sqrt(self.t1)).log_prob(x).sum()
+        return dist.Normal(loc=0., scale=self.sigma * jnp.sqrt(self.t1)).log_prob(x).sum()
 
     def get_drift(
         self, t: Array, x: Array, model: Callable[[Array, Array], Array]
@@ -86,7 +88,8 @@ class PathIntegralSampler:
             model: control policy network taking :math:`t` and :math:`x_t` as arguments.
         """
         u = model(t, x[:-1])
-        return jnp.append(u, 0.5 * (u**2).sum())
+        cost_rate = (0.5 / (self.sigma**2)) * jnp.sum(u**2)
+        return jnp.append(u, cost_rate)
 
     def get_diffusion_train(self, t: Array, x: Array, _) -> Array:
         """
@@ -98,7 +101,7 @@ class PathIntegralSampler:
                 corresponding to the trajectory's cost (:math:`y_t` in the paper).
             _: unused argument required by diffrax.
         """
-        return jnp.append(jnp.ones(self.x_size), jnp.zeros(1))
+        return jnp.append(self.sigma * jnp.ones(self.x_size), jnp.zeros(1))
 
     def get_loss(self, model: PyTree, key: PRNGKey):
         """
@@ -134,7 +137,11 @@ class PathIntegralSampler:
             model: control policy network taking `t` and `x` as arguments.
         """
         u = model(t, x[:-1])
-        return jnp.append(jnp.eye(self.x_size), u[None, :], axis=0)
+        return jnp.append(
+            self.sigma * jnp.eye(self.x_size), 
+            (u / self.sigma)[None, :], 
+            axis=0
+        )
 
     def _sample_x_cost(self, terms: dfx.MultiTerm, model: PyTree) -> Tuple[Array, Array]:
         """
