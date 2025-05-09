@@ -4,6 +4,7 @@ from typing import Callable, Tuple
 
 import diffrax as dfx
 import jax.numpy as jnp
+import lineax
 import numpyro.distributions as dist
 from jax.random import PRNGKey
 from jaxtyping import Array, PyTree  # type: ignore
@@ -54,6 +55,8 @@ class PathIntegralSampler:
     dt0: float
     """initial timestep size for solver.
     """
+    t0_eps: float = 1e-5
+    """Small epsilon for the start time of the diffusion, for numerical stability."""
     solver: dfx.AbstractSolver = dfx.Euler()
     """SDE solver.
     """
@@ -73,7 +76,8 @@ class PathIntegralSampler:
         """
         Gets log probability for the terminal distribution of the uncontrolled process.
         """
-        return dist.Normal(loc=0., scale=self.sigma * jnp.sqrt(self.t1)).log_prob(x).sum()
+        effective_duration = self.t1 - self.t0_eps
+        return dist.Normal(loc=0., scale=self.sigma * jnp.sqrt(effective_duration)).log_prob(x).sum()
 
     def get_drift(
         self, t: Array, x: Array, model: Callable[[Array, Array], Array]
@@ -87,13 +91,17 @@ class PathIntegralSampler:
                 corresponding to the trajectory's cost (:math:`y_t` in the paper).
             model: control policy network taking :math:`t` and :math:`x_t` as arguments.
         """
-        u = model(t, x[:-1])
-        cost_rate = (0.5 / (self.sigma**2)) * jnp.sum(u**2)
-        return jnp.append(u, cost_rate)
+        # model output is u_pt (control before scaling by sigma, analogous to official impl.)
+        u_pt = model(t, x[:-1])
+        # Effective control applied to the SDE for x
+        u_effective = u_pt * self.sigma
+        # Cost rate matches 0.5 * ||u_pt||^2
+        cost_rate = 0.5 * jnp.sum(u_pt**2)
+        return jnp.append(u_effective, cost_rate)
 
-    def get_diffusion_train(self, t: Array, x: Array, _) -> Array:
+    def get_diffusion_train(self, t: Array, x: Array, _) -> lineax.AbstractLinearOperator:
         """
-        Gets the diffusion coefficient for the training SDE.
+        Gets the diffusion coefficient for the training SDE, returning a diagonal linear operator.
 
         Args:
             t: time.
@@ -101,7 +109,8 @@ class PathIntegralSampler:
                 corresponding to the trajectory's cost (:math:`y_t` in the paper).
             _: unused argument required by diffrax.
         """
-        return jnp.append(self.sigma * jnp.ones(self.x_size), jnp.zeros(1))
+        diagonal_vector = jnp.append(self.sigma * jnp.ones(self.x_size), jnp.zeros(1))
+        return lineax.DiagonalLinearOperator(diagonal_vector)
 
     def get_loss(self, model: PyTree, key: PRNGKey):
         """
@@ -117,11 +126,11 @@ class PathIntegralSampler:
                 procedure.
         """
         brownian_motion = dfx.VirtualBrownianTree(
-            0.0, self.t1, self.brownian_motion_tol, (self.x_size + 1,), key
+            self.t0_eps, self.t1, self.brownian_motion_tol, (self.x_size + 1,), key
         )
         terms = dfx.MultiTerm(
             dfx.ODETerm(self.get_drift),
-            dfx.WeaklyDiagonalControlTerm(self.get_diffusion_train, brownian_motion),
+            dfx.ControlTerm(self.get_diffusion_train, brownian_motion),
         )
         return self._sample_x_cost(terms, model)[1]
 
@@ -136,10 +145,13 @@ class PathIntegralSampler:
             x: position.
             model: control policy network taking `t` and `x` as arguments.
         """
-        u = model(t, x[:-1])
+        # model output is u_pt (control before scaling by sigma)
+        u_pt = model(t, x[:-1])
+        # The diffusion term for the cost/log-weight accumulator is u_pt
+        # This corresponds to (u_effective / sigma) dW_t = (u_pt * sigma / sigma) dW_t = u_pt dW_t
         return jnp.append(
-            self.sigma * jnp.eye(self.x_size), 
-            (u / self.sigma)[None, :], 
+            self.sigma * jnp.eye(self.x_size),
+            u_pt[None, :],
             axis=0
         )
 
@@ -151,7 +163,7 @@ class PathIntegralSampler:
         y1 = dfx.diffeqsolve(
             terms,
             self.solver,
-            0.0,
+            self.t0_eps,
             self.t1,
             self.dt0,
             self.y0,
@@ -160,6 +172,7 @@ class PathIntegralSampler:
         ).ys[-1]
         # Split up augmented state
         x_T = y1[:-1]
+        x_T = jnp.nan_to_num(x_T)  # Handle NaN/Inf for numerical stability
         y_T = y1[-1]
         # Add terminal cost
         Psi_T = self.get_log_mu_0(x_T) - self.get_log_mu(x_T)
@@ -180,7 +193,7 @@ class PathIntegralSampler:
         """
         # TODO: custom control term! f is the identity stacked on u.
         brownian_motion = dfx.VirtualBrownianTree(
-            0.0, self.t1, self.brownian_motion_tol, (self.x_size,), key
+            self.t0_eps, self.t1, self.brownian_motion_tol, (self.x_size,), key
         )
         terms = dfx.MultiTerm(
             dfx.ODETerm(self.get_drift),

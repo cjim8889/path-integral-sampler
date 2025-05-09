@@ -334,6 +334,7 @@ dependencies = [
     { name = "jax" },
     { name = "jaxlib" },
     { name = "jaxtyping" },
+    { name = "lineax" },
     { name = "numpyro" },
     { name = "optax" },
 ]
@@ -346,6 +347,7 @@ requires-dist = [
     { name = "jax" },
     { name = "jaxlib" },
     { name = "jaxtyping" },
+    { name = "lineax", specifier = ">=0.0.8" },
     { name = "numpyro" },
     { name = "optax" },
 ]
