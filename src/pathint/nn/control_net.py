@@ -229,7 +229,7 @@ class FourierControlNet(eqx.Module):
         key_phase, key_t_fourier, key_x, key_const, key_coeff = split(key, 5)
 
         # Fourier features parameters
-        self.timestep_coeff = jnp.linspace(start=0.1, end=100.0, num=channels)[
+        self.timestep_coeff = jnp.linspace(start=0.1, stop=100.0, num=channels)[
             None, :
         ]  # Shape (1, channels)
         self.timestep_phase = jax.random.normal(
